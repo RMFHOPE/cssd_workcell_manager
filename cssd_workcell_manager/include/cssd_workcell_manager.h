@@ -42,14 +42,14 @@ struct requests
 
 
 // TODO: change to struct
-class sub_workcell
+struct sub_workcell
 {
-public: //dispenser_mode: (0,idle), (1,busy), (2,offline)
+  //dispenser_mode: (0,idle), (1,busy), (2,offline)
 	std::string name;
 	int32_t dispenser_mode;
 	std::string ongoing_compartment_id;
-	//The compartment the RAWM is dropping to now. Used in checking that the dropoff is actually made in RAWM respond callback
-	std::vector<std::string> item_carried_by_RAWM;
+	//The compartment the subworkcell is dropping to now. Used in checking that the dropoff is actually made in subworkcell respond callback
+	std::vector<std::string> item_carried_by_subworkcell;
 	std::vector<requests> queue;
 };
 
@@ -65,16 +65,16 @@ private:
 		
   rclcpp::Subscription<rmf_msgs::msg::InventoryCheckRequest>::SharedPtr CheckInventory_;
   rclcpp::Subscription<rmf_msgs::msg::DispenserRequest>::SharedPtr DispenserRequest_;
-  rclcpp::Subscription<rmf_msgs::msg::DispenserResult>::SharedPtr RAWMRespond_;  
-  rclcpp::Subscription<rmf_msgs::msg::DispenserState>::SharedPtr RAWMState_;    
+  rclcpp::Subscription<rmf_msgs::msg::DispenserResult>::SharedPtr SubWorkcellRespond_;  
+  rclcpp::Subscription<rmf_msgs::msg::DispenserState>::SharedPtr SubWorkcellState_;    
   
   rclcpp::Publisher<rmf_msgs::msg::InventoryCheckResponse>::SharedPtr InventoryCheckResponse_;
-  rclcpp::Publisher<rmf_msgs::msg::DispenserRequest>::SharedPtr RAWMRequest_;
+  rclcpp::Publisher<rmf_msgs::msg::DispenserRequest>::SharedPtr SubWorkcellRequest_;
   rclcpp::Publisher<rmf_msgs::msg::DispenserResult>::SharedPtr DispenserResponse_;
   
   rclcpp::Client<xbee_interface::srv::R2R>::SharedPtr R2R_client_;
   
-  rclcpp::callback_group::CallbackGroup::SharedPtr RAWM_callback_group_;
+  rclcpp::callback_group::CallbackGroup::SharedPtr SubWorkcell_callback_group_;
   rclcpp::callback_group::CallbackGroup::SharedPtr RFM_callback_group_;
   rclcpp::callback_group::CallbackGroup::SharedPtr R2R_group_;
 
@@ -87,7 +87,7 @@ private:
 
   //ros param
   // TODO: change var name
-	std::string dispenser_name;
+	std::string dispenser_name_;
 	std::string ip_address;
 	std::string username;
 	std::string password;
@@ -101,32 +101,34 @@ private:
 	bool R2R_response = false;
 
 	//variables
-	std::vector<sub_workcell> RAWM;
+	std::vector<sub_workcell> subworkcell;
 	std::string request_id;
 	std::string transporter_id; 
-	std::vector<bool> trolley_compartment_status;
+	std::vector<bool> current_trolley_compartment_status;
 	std::vector<std::string> trolley_compartment_id;
+  std::vector<bool> planned_trolley_compartment_status;
+	
 
   void inventory_check_callback(const rmf_msgs::msg::InventoryCheckRequest::SharedPtr msg);
   /*check DB inventory when OTUI request for a set of item. Will make sure that the requested item is below the limit set in yaml.
-  Will sort through the requested item and add to the queue of the relevant RAWM
+  Will sort through the requested item and add to the queue of the relevant subworkcell
   */
 	
 	void dispenser_request_callback(const rmf_msgs::msg::DispenserRequest::SharedPtr msg);
   /*callback for RFM dispenser request. Will query R2R service, checking that the trolley is closeby and save the status and id of compartment.
   Will check that the trolley has enough space. Save the request_id to the cssd_wm class and set "new_request" to true, 
-  allowing cssd:main() to start publishing to RAWM, according to the request id.
+  allowing cssd:main() to start publishing to subworkcell, according to the request id.
   */
 
-  void RAWM_respond_callback(const rmf_msgs::msg::DispenserResult::SharedPtr msg);
-  /*update RAWM status when RAWM send response. It contain an R2R query to make sure that the compartment the arm placed has an item on it. 
+  void SubWorkcell_respond_callback(const rmf_msgs::msg::DispenserResult::SharedPtr msg);
+  /*update subworkcell status when subworkcell send response. It contain an R2R query to make sure that the compartment the arm placed has an item on it. 
 	This is to check that the item is not dropped along the way. If not successfully loaded, the status will turn 2 and the cssd:main will handle it.
 	*/
-  void RAWM_state_callback(const rmf_msgs::msg::DispenserState::SharedPtr msg);
-  // periodically update RAWM status when RAWM send periodic status updates.
+  void SubWorkcell_state_callback(const rmf_msgs::msg::DispenserState::SharedPtr msg);
+  // periodically update subworkcell status when subworkcell send periodic status updates.
 
   void failed_loading_handling(std::string request_id);
-  /*handle RAWM failure. called in when error occur such as when the status of any RAWM is 2.
+  /*handle subworkcell failure. called in when error occur such as when the status of any subworkcell is 2.
   Will release all leftover item in the request_id.
 	*/
   bool R2R_query(std::string device_id);
